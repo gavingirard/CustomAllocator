@@ -4,10 +4,12 @@
 #include <stddef.h>
 
 #define malloc(size) custom_malloc(size)
+#define realloc(ptr, size) custom_realloc(ptr, size)
 #define calloc(nmemb, size) custom_calloc(nmemb, size)
 #define free(ptr) custom_free(ptr)
 
 void *custom_malloc(size_t size);
+void *custom_realloc(void *ptr, size_t size);
 void *custom_calloc(size_t nmemb, size_t size);
 void custom_free(void *ptr);
 

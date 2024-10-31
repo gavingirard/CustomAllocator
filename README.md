@@ -1,4 +1,4 @@
-# CustomAllocator
+# Custom Memory Allocator
 
 Custom implementation of `malloc()`, `calloc()`, `realloc()`, and `free()` for CS 3650 Computer Systems.
 

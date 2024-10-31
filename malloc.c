@@ -1,13 +1,13 @@
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE 
-#include <malloc.h>
 #include <stdio.h> 
-#include <debug.h>
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "malloc.h"
 
 #ifdef MEM_DEBUG
 #define debug_printf(...) fprintf(stderr, "[DEBUG] - " __VA_ARGS__)
@@ -161,24 +161,21 @@ void *custom_malloc(size_t s) {
   return (void *) (malloc_block_start + sizeof(header_t));
 }
 
-// Allocate and initialize memory for an array of nmemb elements of size s bytes with all values 
-// set to zero. Returns a pointer to the newly allocated space in memory, or NULL if the allocation
-// failed or if the size of an element or the size of the array were equal to zero
-void *custom_calloc(size_t nmemb, size_t s) {
-  // If the array's size or the element's size is equal to zero return NULL
-  if (nmemb == 0 || s == 0) {
-    debug_printf("Calloc 0 bytes (Invalid size)\n");
-    return NULL;
+// Return true if there is space for the given header to expand its data area to the given size
+// before the start of the next header
+bool can_expand(header_t *block, size_t s) {
+  assert(block != NULL);
+  assert(heap_start != NULL);
+
+  char *new_block_end = (char *) block + sizeof(header_t) + s;
+  if (block->next == NULL) {
+    // If the block is at the end of the heap then expansion might be needed
+    expand_heap((char *) block, s + sizeof(header_t));
+    return true;
+  } else {
+    char *next_block_start = (char *) block->next;
+    return (size_t) (next_block_start - new_block_end) >= 0;
   }
-  size_t size = nmemb * s;
-  void *array = custom_malloc(size);
-  if (array == NULL) {
-    debug_printf("Calloc 0 bytes (Allocation failed)\n");
-    return NULL;
-  }
-  memset(array, 0, size);
-  debug_printf("Calloc %zu bytes\n", size);
-  return array;
 }
 
 // Find the block of memory given its header pointer, setting the address of the previous block if
@@ -200,6 +197,71 @@ header_t *find_block(header_t *target, header_t **prev) {
     }
   }
   return NULL;
+}
+
+// Reallocate the block of memory at the given pointer to a new size. Returns a pointer to the
+// newly allocated space in memory which might not necessarily be the same as the old pointer, or
+// NULL if the allocation failed (in which case the old pointer is still valid)
+void *custom_realloc(void *p, size_t s) {
+  // If the pointer is NULL, just malloc the new size
+  if (p == NULL) {
+    return custom_malloc(s);
+  }
+  // If the size is zero, free the old pointer and return NULL
+  if (s == 0) {
+    custom_free(p);
+    return NULL;
+  }
+  // Get the header of the old block
+  header_t *prev;
+  header_t *target = (header_t *) ((char *) p - sizeof(header_t));
+  header_t *old = find_block(target, &prev);
+  // If the old block was not found, return NULL
+  if (old == NULL) {
+    debug_printf("Realloc 0 to 0 bytes (Invalid pointer)\n");
+    return NULL;
+  } else if (old == (void *) -1) {
+    debug_printf("Realloc 0 to 0 bytes (Heap corrupted)\n");
+    return NULL;
+  }
+  if (can_expand(old, s)) {
+    // If the block can be expanded, update the size and return the pointer
+    debug_printf("Realloc %zu to %zu bytes\n", old->dsize, s);
+    old->dsize = s;
+    char *data = (char *) old + sizeof(header_t);
+    return (void *) data;
+  } else {
+    // Otherwise allocate a new block and copy the data over, then free the old pointer
+    void *new = custom_malloc(s);
+    if (new == NULL) {
+      debug_printf("Realloc 0 to 0 bytes (Allocation failed)\n");
+      return NULL;
+    }
+    memcpy(new, p, old->dsize);
+    custom_free(p);
+    debug_printf("Realloc %zu to %zu bytes\n", old->dsize, s);
+    return new;
+  }
+}
+
+// Allocate and initialize memory for an array of nmemb elements of size s bytes with all values 
+// set to zero. Returns a pointer to the newly allocated space in memory, or NULL if the allocation
+// failed or if the size of an element or the size of the array were equal to zero
+void *custom_calloc(size_t nmemb, size_t s) {
+  // If the array's size or the element's size is equal to zero return NULL
+  if (nmemb == 0 || s == 0) {
+    debug_printf("Calloc 0 bytes (Invalid size)\n");
+    return NULL;
+  }
+  size_t size = nmemb * s;
+  void *array = custom_malloc(size);
+  if (array == NULL) {
+    debug_printf("Calloc 0 bytes (Allocation failed)\n");
+    return NULL;
+  }
+  memset(array, 0, size);
+  debug_printf("Calloc %zu bytes\n", size);
+  return array;
 }
 
 // Free the block of memory at the given pointer. If the pointer is NULL or an invalid region of

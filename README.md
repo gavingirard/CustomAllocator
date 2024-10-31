@@ -1,6 +1,6 @@
 # Custom Memory Allocator
 
-Custom implementation of `malloc()`, `calloc()`, `realloc()`, and `free()` for CS 3650 Computer Systems.
+Custom implementation of `malloc()`, `calloc()`, and `free()` for CS 3650 Computer Systems.
 
 ### Notes / Assumptions / Choices
 - All functions behave identically to the normal C `<stdlib.h>` functions

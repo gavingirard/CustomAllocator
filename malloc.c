@@ -124,43 +124,6 @@ char *find_opening(size_t bsize, header_t **prev, header_t **next) {
   }
 }
 
-// Allocate a new block of memory with a size of s bytes. Returns a pointer to the newly allocated
-// space in memory, or NULL if the allocation failed
-void *custom_malloc(size_t s) {
-  // Size of the region needed to store this allocation
-  size_t bsize = sizeof(header_t) + s;
-  // If the heap hasn't been used before, initialize it
-  bool just_initialized = false;
-  if (heap_start == NULL) {
-    init_heap(bsize);
-    just_initialized = true;
-    if (heap_start == NULL) {
-      debug_printf("Malloc 0 bytes (Heap initialization failed)\n");
-      return NULL;
-    }
-  }
-  header_t *prev, *next;
-  char *malloc_block_start = find_opening(bsize, &prev, &next);
-  // If something went wrong while looking through the heap
-  if (malloc_block_start == NULL) {
-    debug_printf("Malloc 0 bytes (Heap corrupted)\n");
-    return NULL;
-  }
-  // If we need to add the block to the end of the heap and it wasn't already added by init_heap, 
-  // try to extend the heap to accomodate the new block
-  if (next == NULL && !just_initialized) {
-    if (expand_heap(malloc_block_start, bsize) == -1) {
-      debug_printf("Malloc 0 bytes (Heap expansion failed)\n");
-      return NULL;
-    }
-  }
-  // Insert this new block into the linked list
-  insert_block(malloc_block_start, s, prev, next);
-  debug_printf("Malloc %zu bytes\n", s);
-  // Return the start of the block plus the header size to get the user's data
-  return (void *) (malloc_block_start + sizeof(header_t));
-}
-
 // Return true if there is space for the given header to expand its data area to the given size
 // before the start of the next header
 bool can_expand(header_t *block, size_t s) {
@@ -197,6 +160,43 @@ header_t *find_block(header_t *target, header_t **prev) {
     }
   }
   return NULL;
+}
+
+// Allocate a new block of memory with a size of s bytes. Returns a pointer to the newly allocated
+// space in memory, or NULL if the allocation failed
+void *custom_malloc(size_t s) {
+  // Size of the region needed to store this allocation
+  size_t bsize = sizeof(header_t) + s;
+  // If the heap hasn't been used before, initialize it
+  bool just_initialized = false;
+  if (heap_start == NULL) {
+    init_heap(bsize);
+    just_initialized = true;
+    if (heap_start == NULL) {
+      debug_printf("Malloc 0 bytes (Heap initialization failed)\n");
+      return NULL;
+    }
+  }
+  header_t *prev, *next;
+  char *malloc_block_start = find_opening(bsize, &prev, &next);
+  // If something went wrong while looking through the heap
+  if (malloc_block_start == NULL) {
+    debug_printf("Malloc 0 bytes (Heap corrupted)\n");
+    return NULL;
+  }
+  // If we need to add the block to the end of the heap and it wasn't already added by init_heap, 
+  // try to extend the heap to accomodate the new block
+  if (next == NULL && !just_initialized) {
+    if (expand_heap(malloc_block_start, bsize) == -1) {
+      debug_printf("Malloc 0 bytes (Heap expansion failed)\n");
+      return NULL;
+    }
+  }
+  // Insert this new block into the linked list
+  insert_block(malloc_block_start, s, prev, next);
+  debug_printf("Malloc %zu bytes\n", s);
+  // Return the start of the block plus the header size to get the user's data
+  return (void *) (malloc_block_start + sizeof(header_t));
 }
 
 // Reallocate the block of memory at the given pointer to a new size. Returns a pointer to the
